@@ -1,5 +1,8 @@
 package com.elasticcloudservice.predict;
 
+import com.elasticcloudservice.allocate.GetAns2;
+import com.elasticcloudservice.allocate.GetAns3;
+import com.elasticcloudservice.allocate.GetAns4;
 import com.elasticcloudservice.model.Physical;
 import com.filetool.util.FileUtil;
 
@@ -31,24 +34,22 @@ import java.util.*;
 //                  佛祖保佑             永无BUG
 public class Predict {
 
-    public static int trainData[][] = new int[10000][100];
+    public static int trainData[][] = new int[500][100];
     public static  LocalDateTime trainStartDateTime;
     public static DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     public static int[][] flavorInfo = {{0,0},{1,1024},{1,2048},{1,4096},{2,2048},{2,4096},{2,8192},{4,4096},{4,8192},{4,16384},{8,8192},{8,16384},
             {8,32768},{16,16384},{16,32768},{16,65536},{32,32768},{32,65536},{32,131072}};
 
-
     /**
-     * 
+     *
      * @param ecsContent
      * @param inputContent
      * @return
      */
-	public static String[] predictVm(String[] ecsContent, String[] inputContent) {
+    public static String[] predictVm(String[] ecsContent, String[] inputContent) {
 
-		/** =========do your work here========== **/
+        /** =========do your work here========== **/
 
-		String[] results = new String[ecsContent.length];
         int flavorNum; // 需要预测的虚拟机种类个数
         int physicalNum; // 物理机种类数
         List<Integer> preFlavorList = new ArrayList<>();   // 虚拟机类型
@@ -59,33 +60,33 @@ public class Predict {
         int preDay ;   // 需要预测的天数
         List<Physical> physicalList = new ArrayList<>();   // 物理机列表
 
-		List<String> history = new ArrayList<String>();
+        List<String> history = new ArrayList<String>();
         // 解析训练文件
-		for (int i = 0; i < ecsContent.length; i++) {
-			if (ecsContent[i].contains("\t")
-					&& ecsContent[i].split("\t").length == 3) {
+        for (int i = 0; i < ecsContent.length; i++) {
+            if (ecsContent[i].contains("\t")
+                    && ecsContent[i].split("\t").length == 3) {
 
-				String[] array = ecsContent[i].split("\t");
-				String uuid = array[0];
-				String flavorName = array[1];
-				String createTime = array[2];
+                String[] array = ecsContent[i].split("\t");
+                String uuid = array[0];
+                String flavorName = array[1];
+                String createTime = array[2];
                 if (i == 0){
                     trainStartDateTime = LocalDateTime.parse(createTime,dateTimeFormatter);
                 }
                 int timeIndex = getTimeIndex(createTime,0);
 
                 int flavor = Integer.parseInt(flavorName.substring(6));
-                // 只需预测 15 种虚拟机
+                // 只需预测 18 种虚拟机
                 if (flavor < 19){
                     trainData[timeIndex][flavor]++;
                 }
                 if (i == ecsContent.length -1 || i== ecsContent.length -2)
                     trainEndTime = timeIndex;
-				//history.add(uuid + " " + flavorName + " " + createTime);
-			}
-		}
+                //history.add(uuid + " " + flavorName + " " + createTime);
+            }
+        }
 
-		// 解析 input 文件
+        // 解析 input 文件
         // 保存物理机信息
         physicalNum = Integer.parseInt(inputContent[0]);
         for (int i = 1; i < 1 + physicalNum; i++) {
@@ -104,13 +105,13 @@ public class Predict {
             preFlavorList.add(Integer.parseInt(flavorString[0].substring(6)));
         }
 
-
-
         String preStartString = inputContent[4 + physicalNum + flavorNum];
         String preEndString = inputContent[5 + physicalNum + flavorNum];
-
         preStartTime = getTimeIndex(preStartString,0);
         preEndTime = getTimeIndex(preEndString,0);
+        // 处理 2016-01-14 23:59:59 的情况
+        if (preEndString.substring(11, 13).equals("23"))
+            preEndTime++;
         preDay = preEndTime - preStartTime ;
 
         System.out.println("trainStartTime: " + trainStartDateTime);
@@ -119,30 +120,34 @@ public class Predict {
         System.out.println("preEndTime: " + preEndTime);
         System.out.println("preDay: " + preDay);
 
-
-
         // 数据预处理
         DataUtil.refineData2(trainData,trainEndTime,preFlavorList);
 
-        Map<Integer,Integer> flavorResultMap1 = predictModel(preStartTime,preDay,preFlavorList);   // 77.854     不去异常：78.781
- //       Map<Integer,Integer> flavorResultMap2 = predictModelPeriodRule(preStartTime,preDay,preFlavorList);    // 74.391   不去异常：75.531
-   //     Map<Integer,Integer> flavorResultMap3  = predictModelConstantRegressionTwo(preStartTime,preDay,preFlavorList); //71.821    不去异常 ：77.385
-        Map<Integer,Integer> flavorResultMap4 = predictModelConstantRegressionOne(preStartTime,preDay,preFlavorList); // 79.452       不去异常 ：   79.558
- //      Map<Integer,Integer> flavorResultMap5 = predictModelLinear(preStartTime,preDay,preFlavorList);   // 76.465       不去异常 ：  79.558
-         double a = 0.28;     //平滑参数
-  //      Map<Integer,Integer> flavorResultMap6 = predictModelTwoSmooth(preStartTime,preDay,preFlavorList,a);   // 59.107   不去异常 ：  61.872
-  //      Map<Integer,Integer> flavorResultMap7= predictModelThreeSmooth(preStartTime,preDay,preFlavorList,a);  //54.459    不去异常 ：  58.288
+       // Map<Integer, Integer> arimaResult = PreModel.arimaModel(trainData, trainEndTime, trainEndTime+1, preDay, preFlavorList, 30);
+       // Map<Integer, Integer> smoothResult = PreModel.ecSmoothingModel(trainData, trainEndTime, trainEndTime+1, preDay, preFlavorList, trainEndTime + 1);
+       // Map<Integer, Integer> averageResult = PreModel.averageModel(trainData, trainEndTime, trainEndTime+1, preDay + preDay/3, preFlavorList, trainEndTime+1);
+       // Map<Integer, Integer> shiftResult = PreModel.shiftModel(trainData, trainEndTime, trainEndTime+1, preDay, preFlavorList, trainEndTime+1);
+        Map<Integer, Integer> allResult = PreModel.allModel(trainData, trainEndTime, preStartTime, preDay+ preDay/4, preFlavorList, trainEndTime+1);
 
-        Map<Integer,Integer> flavorResultMap8= predictModelAverage(preStartTime,preDay,preFlavorList);  // 77.93         不去异常 ：   76.302
+      //  Map<Integer, Integer> flavorResultMap1 = predictModel(trainEndTime + 1, preDay, preFlavorList);   // 77.854     不去异常：78.781
+        //       Map<Integer,Integer> flavorResultMap2 = predictModelPeriodRule(preStartTime,preDay,preFlavorList);    // 74.391   不去异常：75.531
+        //     Map<Integer,Integer> flavorResultMap3  = predictModelConstantRegressionTwo(preStartTime,preDay,preFlavorList); //71.821    不去异常 ：77.385
+      //  Map<Integer, Integer> flavorResultMap4 = predictModelConstantRegressionOne(trainEndTime + 1, preDay, preFlavorList); // 79.452       不去异常 ：   79.558
+        //      Map<Integer,Integer> flavorResultMap5 = predictModelLinear(preStartTime,preDay,preFlavorList);   // 76.465       不去异常 ：  79.558
+       // double a = 0.1;     //平滑参数
+      //  Map<Integer,Integer> flavorResultMap6 = predictModelTwoSmooth(preStartTime,preDay,preFlavorList,a);   // 59.107   不去异常 ：  61.872
+        //      Map<Integer,Integer> flavorResultMap7= predictModelThreeSmooth(preStartTime,preDay,preFlavorList,a);  //54.459    不去异常 ：  58.288
 
+     //   Map<Integer, Integer> flavorResultMap8 = predictModelAverage(trainEndTime + 1, preDay, preFlavorList);  // 77.93         不去异常 ：   76.302
 
         // 加权
         Map<Integer,Integer> flavorResultMap = new HashMap<>();
         for (int flavorNumber : preFlavorList){
             //double preNumber = flavorResultMap1.get(flavorNumber) * 0.1 + flavorResultMap2.get(flavorNumber) * 0.3 + flavorResultMap4.get(flavorNumber) * 0.7;
             //double preNumber = flavorResultMap1.get(flavorNumber) * 0.5 + flavorResultMap4.get(flavorNumber) * 0.5;
-            double preNumber = flavorResultMap1.get(flavorNumber) * 0.63 + flavorResultMap4.get(flavorNumber) * 0.5;  // 90.719
-            //double preNumber = flavorResultMap1.get(flavorNumber);
+            // double preNumber = flavorResultMap1.get(flavorNumber) * 0.63 + flavorResultMap4.get(flavorNumber) * 0.5;  // 90.719
+            // double preNumber = arimaResult.get(flavorNumber) * 0.63 + flavorResultMap4.get(flavorNumber) * 0.5;
+            double preNumber = allResult.get(flavorNumber);
             //double preNumber = flavorResultMap2.get(flavorNumber) * 0.2 + flavorResultMap4.get(flavorNumber) * 0.8;
             //double preNumber = flavorResultMap4.get(flavorNumber);
             //double preNumber = flavorResultMap6.get(flavorNumber) * 0.3 + flavorResultMap8.get(flavorNumber) * 0.4 + flavorResultMap4.get(flavorNumber) * 0.5;
@@ -153,46 +158,14 @@ public class Predict {
             //double preNumber = flavorResultMap7.get(flavorNumber)*0.25 + flavorResultMap1.get(flavorNumber) * 0.8;
             flavorResultMap.put(flavorNumber,(int)Math.round(preNumber));
         }
-
-
-/*
-        //分配方案 1 背包
-        List<Integer> cpu = new ArrayList<>();
-        List<Integer> memory = new ArrayList<>();
-        List<String> name = new ArrayList<>();
-        // 初始
-        cpu.add(0);
-        memory.add(0);
-        name.add("null");
-
-       // int flavorTotal = 0; //预测的虚拟机总数
-      //  List<String> flavorTypeNum = new ArrayList<>(); // 虚拟机规格名称1 虚拟机个数
-        for (Map.Entry<Integer,Integer> map: flavorResultMap.entrySet()){
-            int fNumber = map.getKey();
-            int fTotal = map.getValue();
-            for (int i = 0; i < fTotal; i++) {
-                if (fTotal > 0){
-                    name.add("flavor" + fNumber );
-                    cpu.add(flavorInfo[fNumber][0]);
-                    memory.add(flavorInfo[fNumber][1]/1024);
-                }
-
-            }
-          //  flavorTotal += fTotal;
-          //  flavorTypeNum.add("flavor"+ fNumber+ " " + fTotal);
-        }
-
-        //List<Map<String,Integer>> assignmentResult = Assignment.startAssignment(keyword,physicInfo[0],physicInfo[1],cpu,memory,name);
-       List<Map<String,Integer>> assignmentResult = Assignment3.startAssignment(keyword,physicInfo[0],physicInfo[1],cpu,memory,name,preFlavorList);
-
-*/
-/*
+        //flavorResultMap = flavorResultMap6;
         //分配方案2 粒子群
         int packFlavorNum = 0;
         for (Map.Entry<Integer, Integer> map : flavorResultMap.entrySet()) {
             int fTotal = map.getValue();
             packFlavorNum += fTotal;
         }
+        // 二维数组，虚拟机的属性 [falavorNum][2]  ,[falavorNum][0] = cpu [falavorNum][1] = mem
         int[][] packFlavorInfo = new int[packFlavorNum][2];
         String[] names = new String[packFlavorNum];
         int index = 0;
@@ -206,64 +179,230 @@ public class Predict {
                 index++;
             }
         }
-        List<Map<String,Integer>> assignmentResult = GetAns.startAssignment(packFlavorNum,physicInfo[0],physicInfo[1],keyword,packFlavorInfo,names,preFlavorList);
+/*
+        //分配方案 1 背包
+        List<Integer> cpu = new ArrayList<>();
+        List<Integer> memory = new ArrayList<>();
+        List<String> name = new ArrayList<>();
+        // 初始
+        cpu.add(0);
+        memory.add(0);
+        name.add("null");
 
-        Map<String,Integer> flavorMap = new HashMap<>();   // 存储分配后的结果
-        List<String> physicResult = new ArrayList<>();     // 存储分配的物理机输出信息
-        for (int i = 0; i < assignmentResult.size() ; i++) {
-            Map<String,Integer> tempMap = assignmentResult.get(i);
-            StringBuilder stringBuilder  = new StringBuilder();
-            stringBuilder.append(i+1 +" ");
-            for (Map.Entry<String,Integer> entry:
-                 tempMap.entrySet()) {
-                stringBuilder.append(entry.getKey()+" "+entry.getValue()+" ");
-                if (flavorMap.containsKey(entry.getKey())){
-                    flavorMap.put(entry.getKey(),flavorMap.get(entry.getKey()) + entry.getValue());
-                }else {
-                    flavorMap.put(entry.getKey(),entry.getValue());
+        // int flavorTotal = 0; //预测的虚拟机总数
+        //  List<String> flavorTypeNum = new ArrayList<>(); // 虚拟机规格名称1 虚拟机个数
+        for (Map.Entry<Integer,Integer> map: flavorResultMap.entrySet()){
+            int fNumber = map.getKey();
+            int fTotal = map.getValue();
+            for (int i = 0; i < fTotal; i++) {
+                if (fTotal > 0){
+                    name.add("flavor" + fNumber );
+                    cpu.add(flavorInfo[fNumber][0]);
+                    memory.add(flavorInfo[fNumber][1]/1024);
                 }
+
             }
-            physicResult.add(stringBuilder.toString());
-         //  System.out.println(stringBuilder.toString());
+            //  flavorTotal += fTotal;
+            //  flavorTypeNum.add("flavor"+ fNumber+ " " + fTotal);
         }
+
+        List<Map<String,Integer>> assignmentResult = Assignment3.startAssignment("CPU",physicalList.get(2).getCpu(),physicalList.get(2).getMemory(),cpu,memory,name,preFlavorList);
+        Map<String, List<String>> allocateResult = new HashMap<>();
+        int index2 = 1;
+        List<String> list = new ArrayList<>();
+        list.add(physicalList.get(2).getName()+" "+ assignmentResult.size());
+        for (Map<String,Integer> map:assignmentResult){
+            StringBuilder line = new StringBuilder();
+            line.append(physicalList.get(2).getName()+"-"+index2+" ");
+            for (Map.Entry<String,Integer> entry:map.entrySet()) {
+                line.append(entry.getKey()+" "+entry.getValue()+" ");
+            }
+            index2++;
+            list.add(line.toString());
+        }
+        allocateResult.put(physicalList.get(2).getName(),list);
+*/
+        // 动态规划分配 , 最后一个案例出错
+        Map<String,List<Map<String, Integer>>> allocateResultMap = GetAns4.startAssignment(packFlavorNum, physicalList, packFlavorInfo, names, preFlavorList);
+        // 粒子群分开分配
+        //Map<String,List<Map<String, Integer>>> allocateResultMap = GetAns3.startAssignment(packFlavorNum, physicalList, packFlavorInfo, names, preFlavorList);
+        // 粒子群整体分配
+        // Map<String,List<Map<String, Integer>>> allocateResultMap = GetAns2.startAssignment(packFlavorNum, physicalList, packFlavorInfo, names, preFlavorList);
+        // 将分配结果转为输出字符串
+        List<String> allocateStringList = changeAllocateToResultString(allocateResultMap,physicalList);
+
+        // 解析分配结果，返回新的虚拟机预测结果
+        Map<Integer, Integer> allocateFlavorPre = getFlavorPreResultFromMap(allocateResultMap);
 
         // 以分配结果作为最后的虚拟机数量结果
         int flavorTotal = 0; //预测的虚拟机总数
-        List<String> flavorTypeNum = new ArrayList<>(); // 虚拟机规格名称1 虚拟机个数
+        List<String> flavorPreResult = new ArrayList<>(); // 虚拟机规格名称1 虚拟机个数
         for (int flavor: preFlavorList){
             String flavorStr = "flavor" + flavor;
-            if (flavorMap.containsKey(flavorStr)){
-                flavorTypeNum.add(flavorStr +" " +flavorMap.get(flavorStr));
-                flavorTotal += flavorMap.get(flavorStr);
+            if (allocateFlavorPre.containsKey(flavor)) {
+                flavorPreResult.add(flavorStr + " " + allocateFlavorPre.get(flavor));
+                flavorTotal += allocateFlavorPre.get(flavor);
             }else {
-                flavorTypeNum.add(flavorStr + " " +0);
+                flavorPreResult.add(flavorStr + " " + 0);
             }
 
         }
-
-//        if (assignmentResult.isEmpty()){
-//            assignmentResult.add("0");
-//        }
+        System.out.println(flavorPreResult);
         history.add(flavorTotal+"");
-        history.addAll(flavorTypeNum);
+        history.addAll(flavorPreResult);
         history.add(System.getProperty("line.separator"));
-        history.add(assignmentResult.size()+"");
-        history.addAll(physicResult);
+//        int count = 0;
+//        for (Physical physical : physicalList) {
+//            count++;
+//            // 顺序输出分配结果中的包含的物理机信息
+//            if (!allocateResult.containsKey(physical.getName()))
+//                continue;
+//            if (allocateResult.get(physical.getName()).size() >= 1)
+//                history.addAll(allocateResult.get(physical.getName()));
+//            if (count < physicalList.size() && allocateResult.get(physical.getName()).size() >= 1)   // 最后一行不输出空行
+//                history.add(System.getProperty("line.separator"));
+//
+//        }
 
-		for (int i = 0; i < history.size(); i++) {
-			results[i] = history.get(i);
+        history.addAll(allocateStringList);
+        String[] results = new String[history.size()];
+        for (int i = 0; i < history.size(); i++) {
+            results[i] = history.get(i);
             //System.out.println(results[i]);
         }
-
         // 测试输出
-*/
-       //String testFilePath = "D:\\Works\\competition\\huawei\\资料\\练习数据\\初赛文档\\用例示例\\TestData_2015.2.20_2015.2.27.txt";
-       //testResult(flavorResultMap,flavorMap,keyword,physicInfo[0],physicInfo[1],assignmentResult.size(),testFilePath,preFlavorList);
-		return results;
-	}
 
-	public static void testResult( Map<Integer,Integer> firstResultMap,Map<String,Integer> lastFlavorMap,String keyword,int maxCpu,int maxMemory,int physicSize,String testFilePath,List<Integer> preFlavorList){
-	    // 读取测试数据
+        //String testFilePath = "D:\\Works\\competition\\huawei\\second\\data\\testCase\\TestData_2016.1.8_2016.1.14.txt";
+        //testPredict(flavorResultMap,allocateFlavorPre,testFilePath,preFlavorList);
+        return results;
+    }
+
+    // 将 map 类型分配结果转化为符合输出要求的字符串列表
+    public static List<String> changeAllocateToResultString(Map<String, List<Map<String, Integer>>> allocateResult, List<Physical> physicalList) {
+        List<String> resultList = new ArrayList<>();
+        for (int i = 0; i < physicalList.size(); i++) {
+            String name = physicalList.get(i).getName();
+            List<Map<String, Integer>> machineList = allocateResult.get(name);
+            // 如果此物理机类型没有分配物理机，则跳过输出
+            if (machineList.size() == 0)
+                continue;
+            int size = machineList.size();
+            resultList.add(name+" "+size);
+            // 遍历当前物理机类型的所有物理机
+            for (int j = 0; j < machineList.size(); j++) {
+                StringBuilder line = new StringBuilder();
+                line.append(name + "-" + (j+1) + " ");
+                // 遍历当前物理机的所有虚拟机
+                for (Map.Entry<String, Integer> entry : machineList.get(j).entrySet()) {
+                    line.append(entry.getKey() + " " + entry.getValue() + " ");
+                }
+                resultList.add(line.toString());
+            }
+            if (i < physicalList.size()-1)
+                resultList.add(System.getProperty("line.separator"));
+        }
+        return resultList;
+    }
+
+    // 从 map 类型返回结果获取虚拟机信息
+    public static Map<Integer, Integer> getFlavorPreResultFromMap(Map<String, List<Map<String, Integer>>> allocateResult) {
+        Map<Integer, Integer> returnMap = new HashMap<>();
+        for (Map.Entry<String, List<Map<String, Integer>>> entry : allocateResult.entrySet()) {
+            List<Map<String, Integer>> physicalList = entry.getValue();
+            // 当前物理机没有分配虚拟机
+            if (physicalList.size() == 0)
+                continue;
+            for (Map<String, Integer> map : physicalList) {
+                for (Map.Entry<String, Integer> entry1 : map.entrySet()) {
+                    int fNum = Integer.parseInt(entry1.getKey().substring(6));
+                    int fCount = entry1.getValue();
+                    if (returnMap.containsKey(fNum)) {
+                        returnMap.put(fNum, returnMap.get(fNum) + fCount);
+                    } else {
+                        returnMap.put(fNum, fCount);
+                    }
+                }
+            }
+        }
+        return returnMap;
+    }
+
+    public static Map<Integer, Integer> getFlavorPreResult(Map<String, List<String>> allocateResult) {
+        Map<Integer, Integer> map = new HashMap<>();
+        for (Map.Entry<String, List<String>> entry : allocateResult.entrySet()) {
+            List<String> allocateString = entry.getValue();
+            for (String line : allocateString) {
+                String[] strings = line.split(" ");
+                // 如果长度小于3，则其不是有虚拟机信息的行
+                if (strings.length < 3)
+                    continue;
+                // 存储每一行中的 flavor 信息
+                for (int i = 1; i < strings.length; i += 2) {
+                    int fNum = Integer.parseInt(strings[i].substring(6));
+                    int fCount = Integer.parseInt(strings[i + 1]);
+                    if (map.containsKey(fNum)) {
+                        map.put(fNum, map.get(fNum) + fCount);
+                    } else {
+                        map.put(fNum, fCount);
+                    }
+                }
+            }
+        }
+        return map;
+    }
+    public static void testPredict(Map<Integer, Integer> firstResultMap, Map<Integer, Integer> lastFlavorMap,String testFilePath, List<Integer> preFlavorList) {
+        // 读取测试数据
+        String[] testContent = FileUtil.read(testFilePath,null);
+        Map<Integer,Integer> testMap = new HashMap<>(); // 测试集中每个虚拟机对应的个数
+        for (String test: testContent) {
+            String[] testStrs = test.split("\t");
+            int flavorNum = Integer.parseInt(testStrs[1].substring(6));
+            if (preFlavorList.contains(flavorNum)){
+                if (testMap.containsKey(flavorNum)){
+                    testMap.put(flavorNum,testMap.get(flavorNum)+1);
+                }else {
+                    testMap.put(flavorNum,1);
+                }
+            }
+        }
+
+        // 计算预测结果分数，打印输出
+        int size = preFlavorList.size();
+        double fenzi = 0.0;
+        double fenmuLeft = 0.0;
+        double fenmuRight = 0.0;
+        double score = 0.0;
+        for (Integer flavor: preFlavorList) {
+            int pre = firstResultMap.getOrDefault(flavor,0);
+            int real = testMap.getOrDefault(flavor,0);
+
+            System.out.println("初始预测 flavor" + flavor +": " + pre  + "  实际值：" + real);
+            fenzi += Math.pow(real - pre,2);
+            fenmuLeft += Math.pow(real,2);
+            fenmuRight += Math.pow(pre,2);
+        }
+        score = 1- Math.sqrt(fenzi/size) / (Math.sqrt(fenmuLeft/size)+Math.sqrt(fenmuRight/size));
+        System.out.println("初始预测分数：" + score);
+        System.out.println();
+        fenzi = 0.0;
+        fenmuLeft = 0.0;
+        fenmuRight = 0.0;
+        score = 0.0;
+        for (Integer flavor: preFlavorList) {
+            int pre = lastFlavorMap.getOrDefault(flavor,0);
+            int real = testMap.getOrDefault(flavor,0);
+            System.out.println("分配后预测 flavor" + flavor +": " + pre+ "  实际值：" + real);
+            fenzi += Math.pow(real - pre,2);
+            fenmuLeft += Math.pow(real,2);
+            fenmuRight += Math.pow(pre,2);
+        }
+        score = 1- Math.sqrt(fenzi/size) / (Math.sqrt(fenmuLeft/size)+Math.sqrt(fenmuRight/size));
+        System.out.println("分配后预测分数：" + score);
+
+
+    }
+    public static void testResult(Map<Integer, Integer> firstResultMap, Map<String, Integer> lastFlavorMap, String keyword, int maxCpu, int maxMemory, int physicSize, String testFilePath, List<Integer> preFlavorList) {
+        // 读取测试数据
         String[] testContent = FileUtil.read(testFilePath,null);
         Map<Integer,Integer> testMap = new HashMap<>(); // 测试集中每个虚拟机对应的个数
         for (String test: testContent) {
@@ -358,7 +497,7 @@ public class Predict {
      * @return 时间的索引，从 0 开始
      * @TODO: 2018/3/12 暂时只实现时间类型为天的
      */
-	public static int getTimeIndex(String timeString,int timeType){
+    public static int getTimeIndex(String timeString, int timeType) {
 
         LocalDateTime localDateTime = LocalDateTime.parse(timeString,dateTimeFormatter);
         LocalDate localDate1 = LocalDate.from(trainStartDateTime);
@@ -422,8 +561,8 @@ public class Predict {
                     total += trainData[preStartTime - (j + 1) * preDay + k][preFlavorList.get(i)];
                 }
                 trainMatrixOne[i][j] = total;
-              //  System.out.println("flavor:" + i +"  period:" + j);
-              //  System.out.println("trainMatrixOne: " + trainMatrixOne[i][j]);
+                //  System.out.println("flavor:" + i +"  period:" + j);
+                //  System.out.println("trainMatrixOne: " + trainMatrixOne[i][j]);
 
             }
         }
@@ -479,16 +618,17 @@ public class Predict {
 
     public static double getMin(double[] array){
         double minValue = array[0];
-        for (int i = 0; i<array.length;i++){
+        for (int i = 0; i < array.length; i++) {
             if (array[i]<minValue)
                 minValue = array[i];
         }
         return minValue;
 
     }
+
     public static double getMax(double[] array){
         double maxValue = array[0];
-        for (int i = 0; i<array.length;i++){
+        for (int i = 0; i < array.length; i++) {
             if (array[i]>maxValue)
                 maxValue = array[i];
         }
@@ -516,16 +656,17 @@ public class Predict {
             List valueList = Arrays.asList(trainMatrixTwo[i]);
             int min = (int)getMin(trainMatrixTwo[i]);
             int max = (int)getMax(trainMatrixTwo[i]);
-           // System.out.println(min +" "+ max);
+            // System.out.println(min +" "+ max);
             for (int j = min; j <= max; j++) {
                 lossList.add(lossFuction(j,trainMatrixTwo[i],1));
             }
             double value = Collections.min(lossList);
-           // System.out.println(value);
+            // System.out.println(value);
             returnMap.put(preFlavorList.get(i),lossList.indexOf(value) + min);
         }
         return returnMap;
     }
+
     /**
      *  常数回归模型
      *
@@ -554,6 +695,7 @@ public class Predict {
         }
         return returnMap;
     }
+
     /**
      *  常数回归模型
      *
@@ -599,6 +741,7 @@ public class Predict {
         }
         return returnMap;
     }
+
     public static boolean isWeekDay(int dayIndex){
 
         LocalDate localDate1 = LocalDate.from(trainStartDateTime);
@@ -610,6 +753,7 @@ public class Predict {
         else
             return false;
     }
+
     /**
      *  常数回归模型 One
      *
@@ -641,8 +785,8 @@ public class Predict {
                     total += trainData[preStartTime - (j + 1) * preDay + k][preFlavorList.get(i)];
                 }
                 trainMatrixOne[i][j] = total;
-               // System.out.println("flavor:" + i +"  period:" + j);
-               // System.out.println("trainMatrixOne: " + trainMatrixOne[i][j]);
+                // System.out.println("flavor:" + i +"  period:" + j);
+                // System.out.println("trainMatrixOne: " + trainMatrixOne[i][j]);
 
             }
         }
@@ -651,16 +795,17 @@ public class Predict {
             List<Double> lossList = new ArrayList<>();
             int min = (int)getMin(trainMatrixOne[i]);
             int max = (int)getMax(trainMatrixOne[i]);
-           // System.out.println(min +" "+ max);
+            // System.out.println(min +" "+ max);
             for (int j = min; j <= max; j++) {
                 lossList.add(lossFuction(j,trainMatrixOne[i],preDay));
             }
             double value = Collections.min(lossList);
-           // System.out.println(value);
+            // System.out.println(value);
             returnMap.put(preFlavorList.get(i),lossList.indexOf(value) + min);
         }
         return returnMap;
     }
+
     /**
      * 周期因子规则
      * @param preStartTime
@@ -692,11 +837,11 @@ public class Predict {
                     if (j == period-1 && k> period-baseDay)
                         flavorBase[i] += periodMatrix[i][j][k];
                 }
-              //  System.out.println("flavor:" + i +"  period:" + j);
-              //  System.out.println("total: " + total);
+                //  System.out.println("flavor:" + i +"  period:" + j);
+                //  System.out.println("total: " + total);
 
                 periodMean[i][j] = total / preDay;
-               // System.out.println("periodMean: " + periodMean[i][j]);
+                // System.out.println("periodMean: " + periodMean[i][j]);
                 // 存储周期因子矩阵
                 for (int k = 0; k < preDay; k++) {
                     if (periodMean[i][j] == 0)
@@ -714,7 +859,7 @@ public class Predict {
             for (int j = 0; j < preDay; j++) {
                 List<Double> factorArr = new ArrayList<>();
                 for (int k = 0; k < period; k++) {
-                      factorArr.add(periodFactorMatrix[i][k][j]);
+                    factorArr.add(periodFactorMatrix[i][k][j]);
                 }
                 Collections.sort(factorArr);
                 //中位数
@@ -732,7 +877,7 @@ public class Predict {
                 double average = sum / factorArr.size();
 
                 //System.out.println("factor: "+i+" average: "+ average+ " mid: " + mid);
-               // predictDayValue[i][j] = (int)Math.floor(average * periodMean[i][period-1]);  // 每天的周因子乘以最后一周的周平均
+                // predictDayValue[i][j] = (int)Math.floor(average * periodMean[i][period-1]);  // 每天的周因子乘以最后一周的周平均
                 predictDayValue[i][j] = (int)Math.floor(average * flavorBase[i]);
                 flavorNum += predictDayValue[i][j];
             }
@@ -789,7 +934,6 @@ public class Predict {
         int flavorSize = preFlavorList.size();
         double[][] trainMatrixOne = new double[flavorSize][period];  // 历史每 K 天的总虚拟机数
 
-
         for (int i = 0; i < flavorSize; i++) {
             // 存储每个 flavor 信息
             for (int j = 0; j < period; j++) {
@@ -815,6 +959,7 @@ public class Predict {
         return returnMap;
 
     }
+
     public static Map<Integer,Integer> predictModelTwoSmooth2(int preStartTime,int preDay,List<Integer> preFlavorList,double a){
         Map<Integer,Integer> returnMap = new HashMap<>();
         int period = (preStartTime -1) / preDay ;
@@ -823,7 +968,6 @@ public class Predict {
 
         int flavorSize = preFlavorList.size();
         double[][] trainMatrixOne = new double[flavorSize][period];  // 历史每 K 天的总虚拟机数
-
 
         for (int i = 0; i < flavorSize; i++) {
             // 存储每个 flavor 信息
@@ -844,8 +988,8 @@ public class Predict {
         }
         return returnMap;
     }
-    private static Double getExpect(double[] dataArr, int year, Double modulus ) {
 
+    private static Double getExpect(double[] dataArr, int year, Double modulus ) {
 
         Double modulusLeft = 1 - modulus;
 
@@ -862,6 +1006,7 @@ public class Predict {
 
         return a + b * year;
     }
+
     /**
      *   三次平滑
      * @param preStartTime 预测的开始时间
@@ -879,7 +1024,6 @@ public class Predict {
 
         int flavorSize = preFlavorList.size();
         double[][] trainMatrixOne = new double[flavorSize][period];  // 历史每 K 天的总虚拟机数
-
 
         for (int i = 0; i < flavorSize; i++) {
             // 存储每个 flavor 信息
@@ -939,7 +1083,7 @@ public class Predict {
                 }
             }
 
-            }
+        }
         for (int i = 0; i < flavorSize; i++) {
             double total = 0;
             for (int k = preDay ; k < preDay*2; k++) {
@@ -950,14 +1094,13 @@ public class Predict {
         return returnMap;
     }
 
-
-        /**
-         *  构造样本并使用回归预测
-         * @param preStartTime
-         * @param preDay
-         * @param preFlavorList
-         * @return
-         */
+    /**
+     *  构造样本并使用回归预测
+     * @param preStartTime
+     * @param preDay
+     * @param preFlavorList
+     * @return
+     */
         /*
     public static Map<Integer,Integer> makeRegression(int preStartTime,int preDay,List<Integer> preFlavorList){
         int sampleNum = 3;  // 样本数量

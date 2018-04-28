@@ -5,7 +5,7 @@ package com.elasticcloudservice.model;
  * @Date: 0:23 2018/4/17
  * @Description:
  */
-public class Physical {
+public class Physical implements Comparable<Physical>{
     private String name;
     private int cpu;
     private int memory;
@@ -32,5 +32,19 @@ public class Physical {
 
     public void setMemory(int memory) {
         this.memory = memory;
+    }
+
+    @Override
+    public int compareTo(Physical o) {
+        return this.cpu - o.cpu;
+    }
+
+    @Override
+    public String toString() {
+        return "Physical{" +
+                "name='" + name + '\'' +
+                ", cpu=" + cpu +
+                ", memory=" + memory +
+                '}';
     }
 }

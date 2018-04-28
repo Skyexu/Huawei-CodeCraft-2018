@@ -99,8 +99,8 @@ public class GetDataToFile {
 
     public static void main(String[] args) {
 
-        String ecsDataPath = "D:\\Works\\competition\\huawei\\second\\data\\makedata\\Data_train_2015.12_test_2016.1.8_1.14.txt";
-        String resultFilePath = "D:\\Works\\competition\\huawei\\second\\data\\makedata\\out\\train_2015.12_test_2016.1.8_1.14.txt";
+        String ecsDataPath = "D:\\Works\\competition\\huawei\\second\\data\\makedata\\data_2015_12_2016_1.txt";
+        String resultFilePath = "D:\\Works\\competition\\huawei\\second\\data\\makedata\\out\\train_2015_12_2016_1.txt";
         LogUtil.printLog("Begin");
 
         // 读取输入文件

@@ -1,0 +1,21 @@
+270
+flavor1 43
+flavor2 55
+flavor4 19
+flavor5 38
+flavor8 115
+
+General 10
+General-1 flavor2 50 flavor5 3 
+General-2 flavor5 28 
+General-3 flavor5 2 flavor8 13 
+General-4 flavor8 14 
+General-5 flavor8 14 
+General-6 flavor8 14 
+General-7 flavor8 14 
+General-8 flavor8 14 
+General-9 flavor8 14 
+General-10 flavor8 14 
+
+High-Performance 1
+High-Performance-1 flavor2 5 flavor5 5 flavor4 19 flavor1 43 flavor8 4 

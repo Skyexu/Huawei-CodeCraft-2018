@@ -391,10 +391,10 @@ public class Assignment3 {
 
         //这个后面放你对resultList的所有map进行装填的代码
         //return refine6(resultList,keyword,maxCpu,maxMemory,preFlavorList);
-        //return resultList;
+        return resultList;
         //return refine7(resultList,keyword,maxV,maxW,avaliableV,avaliableW,nameInfo);
         // 每个方法进行投票，选择利用率最高的方法
-
+/*
         List<List<Map<String,Integer>> > allResult = new ArrayList<>();
         //allResult.add(refine(resultList,keyword,maxCpu,maxMemory,preFlavorList)); // 效果不好
 
@@ -424,7 +424,7 @@ public class Assignment3 {
         return allResult.get(index);
 
     //return resultList;
-
+*/
     }
 
     public static <T> List<T> deepCopy(List<T> src) throws IOException, ClassNotFoundException {

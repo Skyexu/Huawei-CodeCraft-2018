@@ -1,11 +1,5 @@
 package com.elasticcloudservice.predict;
 
-import com.elasticcloudservice.model.Physical;
-
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.time.temporal.ChronoUnit;
 import java.util.*;
 
 /**
@@ -27,18 +21,45 @@ public class DataUtil {
         if (n == 0){
             return 0;
         }
-
-        Collections.sort(data);
+        List<Integer> tempData = new ArrayList<>();
+        tempData.addAll(data);
+        Collections.sort(tempData);
         double px = p * (n - 1);
         int i = (int) java.lang.Math.floor(px);
         double g = px - i;
         if (g == 0) {
-            return data.get(i);
+            return tempData.get(i);
         } else {
-            return (1 - g) * data.get(i) + g * data.get(i + 1);
+            return (1 - g) * tempData.get(i) + g * tempData.get(i + 1);
         }
     }
 
+    /**
+     * 获取百分位数
+     *
+     * @param data
+     * @param p
+     * @return
+     */
+    public static double percentile(double[] data, double p) {
+        int n = data.length;
+        if (n == 0) {
+            return 0;
+        }
+        double[] tempData = new double[data.length];
+        for (int i = 0; i < data.length; i++) {
+            tempData[i] = data[i];
+        }
+        Arrays.sort(tempData);
+        double px = p * (n - 1);
+        int i = (int) java.lang.Math.floor(px);
+        double g = px - i;
+        if (g == 0) {
+            return tempData[i];
+        } else {
+            return (1 - g) * tempData[i] + g * tempData[i + 1];
+        }
+    }
     /**
      * 求中位数
      */
@@ -76,6 +97,47 @@ public class DataUtil {
         }
 
         return sum/size;
+    }
+
+    /**
+     * 求均值
+     */
+    public static double getMean(double[] data) {
+        int size = data.length;
+        if (size == 0) {
+            return 0.0;
+        }
+        double sum = 0;
+        for (double value :
+                data) {
+            sum += value;
+        }
+
+        return sum / size;
+    }
+
+    public static void fillZero(double[] data, double vlaue) {
+        for (int i = 0; i < data.length; i++) {
+            if (data[i] == 0)
+                data[i] = vlaue;
+        }
+    }
+    // 获取倒数几天
+    public static double[] getPeriodData(double[] data, int period) {
+        double[] temp = new double[period];
+        int index = 0;
+        for (int i = data.length - period; i < data.length; i++) {
+            temp[index++] = data[i];
+        }
+        return temp;
+    }
+    public static double getMax(double[] data) {
+        double[] tempData = new double[data.length];
+        for (int i = 0; i < data.length; i++) {
+            tempData[i] = data[i];
+        }
+        Arrays.sort(tempData);
+        return tempData[tempData.length - 1];
     }
     /**
      * 求众数
@@ -170,7 +232,7 @@ public class DataUtil {
     }
 
     /**
-     * 处理异常值（百分位法）,将异常值设置为中位数的两倍
+     * 处理异常值（百分位法）
      * @param trainData
      * @param trainEndTime  训练集结束索引
      * @param preFlavorList
@@ -187,7 +249,6 @@ public class DataUtil {
                     flavorData.add(trainData[j][preFlavorList.get(i)]);
                 }
             }
-
 
             // 获取 25% 和 75% 百分位
             double Q1 = percentile(flavorData, 0.25);
@@ -208,16 +269,87 @@ public class DataUtil {
             }
             int midNum = getMedian(flavorData);
             //int freNum = getModalNums(flavorData);
-            int mean = (int)Math.ceil(getMean(flavorData));
+            int mean = (int) Math.round(getMean(flavorData));
             for (int j = 0; j < trainEndTimePlus; j++) {
                 if (trainData[j][preFlavorList.get(i)] == OUTLIER ) {
                     trainData[j][preFlavorList.get(i)] = (int)Math.round(Q3 + 1.5*(Q3 - Q1));
+                    //trainData[j][preFlavorList.get(i)] = mean;
                 }
             }
         }
     }
 
+    /**
+     * 删除异常值（百分位法）
+     *
+     * @param trainData
+     */
+    public static double[] removeOutlier(double trainData[]) {
 
+        // 获取 25% 和 75% 百分位
+        double Q1 = percentile(trainData, 0.25);
+        double Q3 = percentile(trainData, 0.75);
+        double upperLimit = Q3 + 3 * (Q3 - Q1);
+        List<Double> list = new ArrayList<>();
+        for (int i = 0; i < trainData.length; i++) {
+            if (trainData[i] <= upperLimit) {
+                list.add(trainData[i]);
+            }
+        }
+        double[] data = new double[list.size()];
+        for (int i = 0; i < list.size(); i++) {
+            data[i] = list.get(i);
+        }
+        return data;
+    }
+
+    /**
+     * @param data 所有数据
+     * @param a    训练和测试数据集大小
+     * @return double[0]  训练集 double[0] 测试集
+     */
+    public static double[][] getTrainTest(double[] data, double a) {
+        int trainEnd = (int) Math.round(data.length * a);
+        double[][] returnData = new double[2][];
+        double[] train = new double[trainEnd];
+        double[] test = new double[data.length - trainEnd];
+        for (int i = 0; i < data.length; i++) {
+            if (i < trainEnd)
+                train[i] = data[i];
+            else
+                test[i - trainEnd] = data[i];
+        }
+        returnData[0] = train;
+        returnData[1] = test;
+        return returnData;
+    }
+
+    public static double getMSE(double[] pre, double[] test) {
+        if (pre.length != test.length)
+            throw new IllegalArgumentException("train and test must have same length.");
+        double mse = 0.0;
+
+        for (int i = 0; i < pre.length; i++) {
+            mse += Math.pow(pre[i] - test[i], 2);
+        }
+        mse = Math.sqrt(mse / pre.length);
+        return mse;
+    }
+
+    public static double[] changeDataToPeriod(double[] data, int peroid) {
+        int canPeriod = data.length / peroid;
+        int index = data.length - canPeriod * peroid;
+        double[] newData = new double[canPeriod];
+        int index2 = 0;
+        for (int i = index; i < data.length; i += peroid) {
+            double sum = 0.0;
+            for (int j = i; j < i + peroid; j++) {
+                sum += data[j];
+            }
+            newData[index2++] = sum;
+        }
+        return newData;
+    }
     public static void main(String[] args) {
         List<Integer> data = Arrays.asList(new Integer[]{1, 4, 6, 2, 8});
 
